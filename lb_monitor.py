@@ -7,6 +7,7 @@ import json
 from datetime import datetime, timezone
 import sys
 import warnings
+import zipfile
 warnings.filterwarnings('ignore')
 
 if __name__ == '__main__':
@@ -21,29 +22,20 @@ if __name__ == '__main__':
     while(True):
         now = datetime.now()
         print(now.strftime("%Y-%m-%d %H:%M:%S"))  # 2023-06-30 14:25:36
+        api.competition_leaderboard_download(competition_name, path='.', quiet=False)
+        with zipfile.ZipFile(f'{competition_name}.zip', 'r') as z:
+            with z.open(z.namelist()[0]) as f:
+                ld_df = pd.read_csv(f)[:50]  # 可以添加其他参数如 encoding='utf-8'
 
-        leaderboard = api.competition_leaderboard_view(competition_name)
-
-        leaderboard_data = []
-        for i, entry in enumerate(leaderboard[:50]):
-            leaderboard_data.append({
-                'Rank': i + 1,
-                'teamName': entry.team_name,
-                'score': entry.score,
-                'submissionDate': entry.submission_date,
-            })
-
-        ld_df = pd.DataFrame(leaderboard_data)
-
-        ld_df['submissionDate'] = ld_df['submissionDate'].dt.tz_localize('UTC').dt.tz_convert('Asia/Shanghai')
-        ld_df['time_diff'] = ((pd.Timestamp.now(tz='Asia/Shanghai')-ld_df['submissionDate']).dt.total_seconds() / 60).round(2)
+        ld_df['LastSubmissionDate'] = pd.to_datetime(ld_df['LastSubmissionDate']).dt.tz_localize('UTC').dt.tz_convert('Asia/Shanghai')
+        ld_df['time_diff'] = ((pd.Timestamp.now(tz='Asia/Shanghai')-ld_df['LastSubmissionDate']).dt.total_seconds() / 60).round(2)
         print('最近提交...')
-        print(ld_df[ld_df['time_diff']<sub_time])
+        print(ld_df[ld_df['time_diff']<sub_time][['Rank', 'TeamName', 'LastSubmissionDate', 'Score', 'SubmissionCount', 'time_diff']])
         print('------')
         if last_team is not None:
             print('新进入排行榜...')
-            print(ld_df[~ld_df['teamName'].isin(last_team)])
-        last_team = ld_df['teamName'].unique()
+            print(ld_df[~ld_df['TeamName'].isin(last_team)][['Rank', 'TeamName', 'LastSubmissionDate', 'Score', 'SubmissionCount', 'time_diff']])
+        last_team = ld_df['TeamName'].unique()
 
         print('===============================\n')
         time.sleep(300)
